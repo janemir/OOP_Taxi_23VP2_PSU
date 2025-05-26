@@ -12,8 +12,8 @@ namespace OOP_Taxi_23VP2
 {
     public partial class Form1 : Form
     {
-        private const string _postgresConn = $"Host=localhost;Port=5432;Username=postgres;Password=postgres;Database={dbName}";
-        private const string _removeConn = $"Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=postgres";
+        private const string _postgresConn = $"Host=localhost;Port=5432;Username=postgres;Password=postgres;Database={dbName};Pooling=false;Timeout=300;CommandTimeout=300";
+        private const string _removeConn = $"Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=postgres;Pooling=false;Timeout=300;CommandTimeout=300";
         private const string dbName = "taxi_orders";
         const string containerName = "postgres-db";
         const string dbUser = "postgres";
