@@ -29,5 +29,10 @@ namespace OOP_Taxi_23VP2
             this.DialogResult = DialogResult.OK;
             this.Close();
         }
+
+        private void SplashScreen_Load(object sender, EventArgs e)
+        {
+            throw new System.NotImplementedException();
+        }
     }
 }

@@ -86,7 +86,8 @@ namespace OOP_Taxi_23VP2
                     MessageBox.Show($"Базы «{dbName}» не найдено.");
                     return;
                 }
-
+                
+                // запрос на соединения
                 using (var terminate = new NpgsqlCommand(@"
                     SELECT pg_terminate_backend(pid)
                     FROM pg_stat_activity
@@ -108,7 +109,8 @@ namespace OOP_Taxi_23VP2
                 MessageBox.Show($"Ошибка удаления: {ex.Message}");
             }
         }
-
+        
+        // Проверка существования БД
         private static async Task<bool> DatabaseExists(NpgsqlConnection conn)
         {
             using var check = new NpgsqlCommand("select 1 from pg_database where datname = @name", conn);
@@ -116,6 +118,7 @@ namespace OOP_Taxi_23VP2
             return await check.ExecuteScalarAsync() != null;
         }
 
+        // Сохранение БД в файл
         private void button4_Click(object sender, EventArgs e)
         {
             var hostBackupPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), backupFileName);
@@ -167,6 +170,7 @@ namespace OOP_Taxi_23VP2
             }
         }
 
+        // Загрузка данных из БД в датагрид
         private async void LoadOrdersFromDatabase()
         {
             var query = "SELECT id, driver_name, car_number, client_phone, order_status FROM taxi";
@@ -202,7 +206,7 @@ namespace OOP_Taxi_23VP2
             }
         }
 
-
+        // Поиск
         private void button1_Click(object sender, EventArgs e)
         {
             using var conn = new NpgsqlConnection(_postgresConn);
@@ -229,6 +233,7 @@ namespace OOP_Taxi_23VP2
             dataGridView1.DataSource = info;
         }
 
+        // Добавление 
         private async void button8_Click(object sender, EventArgs e)
         {
             var newInfo = new Order
@@ -258,6 +263,7 @@ namespace OOP_Taxi_23VP2
             }
         }
 
+        // Обновление
         private async void button9_Click(object sender, EventArgs e)
         {
             var updatedInfo = new Order
@@ -298,6 +304,7 @@ namespace OOP_Taxi_23VP2
             }
         }
 
+        // Удалить запись
         private async void button7_Click(object sender, EventArgs e)
         {
             var id = int.Parse(numericUpDown1.Text);
@@ -320,6 +327,8 @@ namespace OOP_Taxi_23VP2
             }
         }
 
+        
+        // Фильтрация 
         private void button5_Click(object sender, EventArgs e)
         {
             using var conn = new NpgsqlConnection(_postgresConn);
@@ -343,6 +352,7 @@ namespace OOP_Taxi_23VP2
             
             conn.Close();
             dataGridView1.DataSource = info.ToList();
+            textBox5.Text = $"Записей со статусом 'Завершен': {info.Count} ";
         }
 
         private void button6_Click(object sender, EventArgs e)
@@ -368,6 +378,7 @@ namespace OOP_Taxi_23VP2
             
             conn.Close();
             dataGridView1.DataSource = info.ToList();
+            textBox5.Text = $"Записей со статусом 'В работе': {info.Count} ";
         }
 
         private void button10_Click(object sender, EventArgs e)
@@ -393,11 +404,13 @@ namespace OOP_Taxi_23VP2
             
             conn.Close();
             dataGridView1.DataSource = info.ToList();
+            textBox5.Text = $"Записей со статусом 'Ожидание': {info.Count} ";
         }
 
         private void button11_Click(object sender, EventArgs e)
         {
            LoadOrdersFromDatabase();
+           textBox5.Clear(); 
         }
     }
 }
