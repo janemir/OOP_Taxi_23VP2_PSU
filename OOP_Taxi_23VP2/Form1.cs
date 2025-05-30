@@ -1,10 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Xml.Linq;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
 using Npgsql;
 using OOP_Taxi_23VP2.Models;
 
@@ -18,8 +22,8 @@ namespace OOP_Taxi_23VP2
         const string containerName = "postgres-db";
         const string dbUser = "postgres";
         const string backupFileName = $"postgres_dump.sql";
-        
-        
+
+
         public Form1()
         {
             InitializeComponent();
@@ -43,7 +47,7 @@ namespace OOP_Taxi_23VP2
             {
                 await using var conn = new NpgsqlConnection(_removeConn);
                 await conn.OpenAsync();
-                
+
                 if (await DatabaseExists(conn))
                 {
                     MessageBox.Show($"База «{dbName}» уже существует.");
@@ -55,13 +59,13 @@ namespace OOP_Taxi_23VP2
 
                 await using var taxiConn = new NpgsqlConnection(_postgresConn);
                 await taxiConn.OpenAsync();
-                
+
                 using var query = new NpgsqlCommand($"create table if not exists taxi (id serial PRIMARY KEY, driver_name varchar(255), car_number varchar(255), client_phone varchar(14), order_status varchar(10))", taxiConn);
                 await query.ExecuteNonQueryAsync();
-                
+
                 await taxiConn.CloseAsync();
                 await conn.CloseAsync();
-                
+
                 dataGridView1.DataSource = new List<Order>();
                 MessageBox.Show($"База «{dbName}» успешно создана!");
             }
@@ -86,8 +90,7 @@ namespace OOP_Taxi_23VP2
                     MessageBox.Show($"Базы «{dbName}» не найдено.");
                     return;
                 }
-                
-                // запрос на соединения
+
                 using (var terminate = new NpgsqlCommand(@"
                     SELECT pg_terminate_backend(pid)
                     FROM pg_stat_activity
@@ -98,7 +101,7 @@ namespace OOP_Taxi_23VP2
                     await terminate.ExecuteNonQueryAsync();
                 }
 
-                using (var drop = new NpgsqlCommand($"drop database \"{dbName}\"", conn)) 
+                using (var drop = new NpgsqlCommand($"drop database \"{dbName}\"", conn))
                     await drop.ExecuteNonQueryAsync();
                 await conn.CloseAsync();
                 MessageBox.Show($"База «{dbName}» удалена.");
@@ -109,8 +112,11 @@ namespace OOP_Taxi_23VP2
                 MessageBox.Show($"Ошибка удаления: {ex.Message}");
             }
         }
-        
-        // Проверка существования БД
+
+
+        /// <summary>
+        ///  Проверка существования БД
+        /// </summary>
         private static async Task<bool> DatabaseExists(NpgsqlConnection conn)
         {
             using var check = new NpgsqlCommand("select 1 from pg_database where datname = @name", conn);
@@ -118,59 +124,73 @@ namespace OOP_Taxi_23VP2
             return await check.ExecuteScalarAsync() != null;
         }
 
-        // Сохранение БД в файл
+        /// <summary>
+        ///  Сохранение БД в файл
+        /// </summary> 
         private void button4_Click(object sender, EventArgs e)
         {
-            var hostBackupPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), backupFileName);
-            var containerBackupPath = $"/tmp/{backupFileName}";
+            string pdfPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "taxi_export.pdf");
 
             try
             {
-                var dump = new ProcessStartInfo("docker",
-                    $"exec {containerName} pg_dump -U {dbUser} -d {dbName} -f {containerBackupPath}")
+                var dataTable = new DataTable();
+                using (var conn = new NpgsqlConnection(_postgresConn))
                 {
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                var procDump = Process.Start(dump);
-                procDump.WaitForExit();
-                var errorDump = procDump.StandardError.ReadToEnd();
-
-                if (procDump.ExitCode != 0)
-                {
-                    MessageBox.Show($"Ошибка при создании дампа:\n{errorDump}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-                
-                var copy = new ProcessStartInfo("docker",
-                    $"cp {containerName}:{containerBackupPath} \"{hostBackupPath}\"")
-                {
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                var procCopy = Process.Start(copy);
-                procCopy.WaitForExit();
-                var errorCopy = procCopy.StandardError.ReadToEnd();
-
-                if (procCopy.ExitCode != 0)
-                {
-                    MessageBox.Show($"Ошибка при копировании дампа:\n{errorCopy}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
+                    conn.Open();
+                    using (var cmd = new NpgsqlCommand("SELECT * FROM taxi ORDER BY id", conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        dataTable.Load(reader);
+                    }
                 }
 
-                MessageBox.Show($"Дамп успешно создан:\n{hostBackupPath}", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                string fontPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "arial.ttf");
+                var baseFont = BaseFont.CreateFont(fontPath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                var titleFont = new Font(baseFont, 14);
+                var tableFont = new Font(baseFont, 10);
+
+                using (var fs = new FileStream(pdfPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var doc = new Document(PageSize.A4, 25, 25, 30, 30))
+                using (var writer = PdfWriter.GetInstance(doc, fs))
+                {
+                    doc.Open();
+
+                    doc.Add(new Paragraph("Экспорт данных из таблицы 'taxi'", titleFont));
+                    doc.Add(new Paragraph($"Дата экспорта: {DateTime.Now}\n\n", tableFont));
+
+                    PdfPTable pdfTable = new PdfPTable(dataTable.Columns.Count);
+                    pdfTable.WidthPercentage = 100;
+
+                    foreach (DataColumn column in dataTable.Columns)
+                    {
+                        var cell = new PdfPCell(new Phrase(column.ColumnName, tableFont));
+                        cell.BackgroundColor = BaseColor.LIGHT_GRAY;
+                        pdfTable.AddCell(cell);
+                    }
+
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        foreach (var item in row.ItemArray)
+                        {
+                            pdfTable.AddCell(new Phrase(item?.ToString(), tableFont));
+                        }
+                    }
+
+                    doc.Add(pdfTable);
+                    doc.Close();
+                }
+
+                MessageBox.Show($"PDF успешно создан:\n{pdfPath}", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Исключение:\n{ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Ошибка при экспорте PDF:\n{ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        // Загрузка данных из БД в датагрид
+        /// <summary>
+        ///  Загрузка данных из БД в DataGridView
+        /// </summary> 
         private async void LoadOrdersFromDatabase()
         {
             var query = "SELECT id, driver_name, car_number, client_phone, order_status FROM taxi";
@@ -206,7 +226,9 @@ namespace OOP_Taxi_23VP2
             }
         }
 
-        // Поиск
+        /// <summary>
+        ///  Поиск по номеру машины
+        /// </summary>
         private void button1_Click(object sender, EventArgs e)
         {
             using var conn = new NpgsqlConnection(_postgresConn);
@@ -221,19 +243,21 @@ namespace OOP_Taxi_23VP2
             {
                 info.Add(new Order
                 {
-                    Id = reader.GetInt32(0),  
+                    Id = reader.GetInt32(0),
                     DriverName = reader.GetString(1),
                     CarNumber = reader.GetString(2),
                     ClientPhone = reader.GetString(3),
                     OrderStatus = reader.GetString(4)
                 });
             }
-            
+
             conn.Close();
             dataGridView1.DataSource = info;
         }
 
-        // Добавление 
+        /// <summary>
+        ///  Добавление записи
+        /// </summary> 
         private async void button8_Click(object sender, EventArgs e)
         {
             var newInfo = new Order
@@ -243,7 +267,7 @@ namespace OOP_Taxi_23VP2
                 ClientPhone = textBox3.Text,
                 OrderStatus = textBox4.Text
             };
-            
+
             await using var conn = new NpgsqlConnection(_postgresConn);
             await conn.OpenAsync();
             var query = "insert into taxi(driver_name, car_number, client_phone, order_status) values (@driverName, @carNumber, @clientPhone, @orderStatus)";
@@ -263,7 +287,9 @@ namespace OOP_Taxi_23VP2
             }
         }
 
-        // Обновление
+        /// <summary>
+        ///  Обновление записи
+        /// </summary>
         private async void button9_Click(object sender, EventArgs e)
         {
             var updatedInfo = new Order
@@ -304,7 +330,9 @@ namespace OOP_Taxi_23VP2
             }
         }
 
-        // Удалить запись
+        /// <summary>
+        ///  Удаление записи
+        /// </summary>
         private async void button7_Click(object sender, EventArgs e)
         {
             var id = int.Parse(numericUpDown1.Text);
@@ -312,7 +340,7 @@ namespace OOP_Taxi_23VP2
             {
                 await using var conn = new NpgsqlConnection(_postgresConn);
                 await conn.OpenAsync();
-                
+
                 var query = @"delete from taxi where id = @id";
                 using var cmd = new NpgsqlCommand(query, conn);
                 cmd.Parameters.AddWithValue("@id", id);
@@ -327,8 +355,9 @@ namespace OOP_Taxi_23VP2
             }
         }
 
-        
-        // Фильтрация 
+        /// <summary>
+        ///  Фильтр "Завершен"
+        /// </summary>
         private void button5_Click(object sender, EventArgs e)
         {
             using var conn = new NpgsqlConnection(_postgresConn);
@@ -342,19 +371,22 @@ namespace OOP_Taxi_23VP2
             {
                 info.Add(new Order
                 {
-                    Id = reader.GetInt32(0),  
+                    Id = reader.GetInt32(0),
                     DriverName = reader.GetString(1),
                     CarNumber = reader.GetString(2),
                     ClientPhone = reader.GetString(3),
                     OrderStatus = reader.GetString(4)
                 });
             }
-            
+
             conn.Close();
             dataGridView1.DataSource = info.ToList();
             textBox5.Text = $"Записей со статусом 'Завершен': {info.Count} ";
         }
 
+        /// <summary>
+        ///  Фильтр "В работе"
+        /// </summary>
         private void button6_Click(object sender, EventArgs e)
         {
             using var conn = new NpgsqlConnection(_postgresConn);
@@ -368,19 +400,22 @@ namespace OOP_Taxi_23VP2
             {
                 info.Add(new Order
                 {
-                    Id = reader.GetInt32(0),  
+                    Id = reader.GetInt32(0),
                     DriverName = reader.GetString(1),
                     CarNumber = reader.GetString(2),
                     ClientPhone = reader.GetString(3),
                     OrderStatus = reader.GetString(4)
                 });
             }
-            
+
             conn.Close();
             dataGridView1.DataSource = info.ToList();
             textBox5.Text = $"Записей со статусом 'В работе': {info.Count} ";
         }
 
+        /// <summary>
+        ///  Фильтр "Ожидание"
+        /// </summary>
         private void button10_Click(object sender, EventArgs e)
         {
             using var conn = new NpgsqlConnection(_postgresConn);
@@ -394,23 +429,102 @@ namespace OOP_Taxi_23VP2
             {
                 info.Add(new Order
                 {
-                    Id = reader.GetInt32(0),  
+                    Id = reader.GetInt32(0),
                     DriverName = reader.GetString(1),
                     CarNumber = reader.GetString(2),
                     ClientPhone = reader.GetString(3),
                     OrderStatus = reader.GetString(4)
                 });
             }
-            
+
             conn.Close();
             dataGridView1.DataSource = info.ToList();
             textBox5.Text = $"Записей со статусом 'Ожидание': {info.Count} ";
         }
 
+        /// <summary>
+        ///  Сброс фильтров
+        /// </summary>
         private void button11_Click(object sender, EventArgs e)
         {
-           LoadOrdersFromDatabase();
-           textBox5.Clear(); 
+            LoadOrdersFromDatabase();
+            textBox5.Clear();
+        }
+
+        /// <summary>
+        ///  Сортировка по возрастанию ID
+        /// </summary>
+        private async void button12_Click(object sender, EventArgs e)
+        {
+            var query = "SELECT id, driver_name, car_number, client_phone, order_status FROM taxi ORDER BY id ASC";
+            var info = new List<Order>();
+
+            try
+            {
+                await using var conn = new NpgsqlConnection(_postgresConn);
+                await conn.OpenAsync();
+
+                using var cmd = new NpgsqlCommand(query, conn);
+                await using var reader = await cmd.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    info.Add(new Order
+                    {
+                        Id = reader.GetInt32(0),
+                        DriverName = reader.GetString(1),
+                        CarNumber = reader.GetString(2),
+                        ClientPhone = reader.GetString(3),
+                        OrderStatus = reader.GetString(4)
+                    });
+                }
+
+                dataGridView1.DataSource = info;
+            }
+            catch (PostgresException ex) when (ex.SqlState == "3D000" || ex.SqlState == "42P01")
+            {
+            }
+            catch
+            {
+            }
+        }
+
+        /// <summary>
+        ///  Сортировка по убыванию ID
+        /// </summary> 
+        private async void button13_Click(object sender, EventArgs e)
+        {
+            var query = "SELECT id, driver_name, car_number, client_phone, order_status FROM taxi ORDER BY id DESC";
+            var info = new List<Order>();
+
+            try
+            {
+                await using var conn = new NpgsqlConnection(_postgresConn);
+                await conn.OpenAsync();
+
+                using var cmd = new NpgsqlCommand(query, conn);
+                await using var reader = await cmd.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    info.Add(new Order
+                    {
+                        Id = reader.GetInt32(0),
+                        DriverName = reader.GetString(1),
+                        CarNumber = reader.GetString(2),
+                        ClientPhone = reader.GetString(3),
+                        OrderStatus = reader.GetString(4)
+                    });
+                }
+
+                dataGridView1.DataSource = info;
+            }
+            catch (PostgresException ex) when (ex.SqlState == "3D000" || ex.SqlState == "42P01")
+            {
+            }
+            catch
+            {
+            }
         }
     }
 }
