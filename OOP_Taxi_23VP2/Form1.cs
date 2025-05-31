@@ -22,22 +22,18 @@ namespace OOP_Taxi_23VP2
         const string containerName = "postgres-db";
         const string dbUser = "postgres";
         const string backupFileName = $"postgres_dump.sql";
-
-
         public Form1()
         {
             InitializeComponent();
             ConfigureDataGridView();
             LoadOrdersFromDatabase();
         }
-
         private void ConfigureDataGridView()
         {
             dataGridView1.Columns.Clear();
             dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             dataGridView1.AllowUserToResizeColumns = true;
         }
-
         /// <summary>
         ///  Создание БД
         /// </summary>
@@ -60,7 +56,13 @@ namespace OOP_Taxi_23VP2
                 await using var taxiConn = new NpgsqlConnection(_postgresConn);
                 await taxiConn.OpenAsync();
 
-                using var query = new NpgsqlCommand($"create table if not exists taxi (id serial PRIMARY KEY, driver_name varchar(255), car_number varchar(255), client_phone varchar(14), order_status varchar(10))", taxiConn);
+                using var query = new NpgsqlCommand(
+                    @"create table if not exists taxi 
+                    (id serial PRIMARY KEY,
+                    driver_name varchar(255), 
+                    car_number varchar(255), 
+                    client_phone varchar(14), 
+                    order_status varchar(10))", taxiConn);
                 await query.ExecuteNonQueryAsync();
 
                 await taxiConn.CloseAsync();
@@ -74,7 +76,6 @@ namespace OOP_Taxi_23VP2
                 MessageBox.Show($"Ошибка создания: {ex.Message}");
             }
         }
-
         /// <summary>
         /// Удаление БД 
         /// </summary>
@@ -112,8 +113,6 @@ namespace OOP_Taxi_23VP2
                 MessageBox.Show($"Ошибка удаления: {ex.Message}");
             }
         }
-
-
         /// <summary>
         ///  Проверка существования БД
         /// </summary>
@@ -123,7 +122,6 @@ namespace OOP_Taxi_23VP2
             check.Parameters.AddWithValue("name", dbName);
             return await check.ExecuteScalarAsync() != null;
         }
-
         /// <summary>
         ///  Сохранение БД в файл
         /// </summary> 
@@ -187,22 +185,21 @@ namespace OOP_Taxi_23VP2
                 MessageBox.Show($"Ошибка при экспорте PDF:\n{ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
         /// <summary>
         ///  Загрузка данных из БД в DataGridView
         /// </summary> 
         private async void LoadOrdersFromDatabase()
-        {
+        {  
             var query = "SELECT id, driver_name, car_number, client_phone, order_status FROM taxi";
             var info = new List<Order>();
 
             try
             {
-                await using var conn = new NpgsqlConnection(_postgresConn);
+                using var conn = new NpgsqlConnection(_postgresConn); 
                 await conn.OpenAsync();
 
                 using var cmd = new NpgsqlCommand(query, conn);
-                await using var reader = await cmd.ExecuteReaderAsync();
+                using var reader = await cmd.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())
                 {
@@ -225,7 +222,6 @@ namespace OOP_Taxi_23VP2
             {
             }
         }
-
         /// <summary>
         ///  Поиск по номеру машины
         /// </summary>
@@ -254,7 +250,6 @@ namespace OOP_Taxi_23VP2
             conn.Close();
             dataGridView1.DataSource = info;
         }
-
         /// <summary>
         ///  Добавление записи
         /// </summary> 
@@ -286,7 +281,6 @@ namespace OOP_Taxi_23VP2
                 MessageBox.Show($"Ошибка при вставке данных: {ex.Message}");
             }
         }
-
         /// <summary>
         ///  Обновление записи
         /// </summary>
@@ -329,7 +323,6 @@ namespace OOP_Taxi_23VP2
                 MessageBox.Show($"Ошибка при обновлении: {ex.Message}");
             }
         }
-
         /// <summary>
         ///  Удаление записи
         /// </summary>
@@ -354,7 +347,6 @@ namespace OOP_Taxi_23VP2
                 MessageBox.Show($"Ошибка при удалении: {ex.Message}");
             }
         }
-
         /// <summary>
         ///  Фильтр "Завершен"
         /// </summary>
@@ -383,7 +375,6 @@ namespace OOP_Taxi_23VP2
             dataGridView1.DataSource = info.ToList();
             textBox5.Text = $"Записей со статусом 'Завершен': {info.Count} ";
         }
-
         /// <summary>
         ///  Фильтр "В работе"
         /// </summary>
@@ -412,7 +403,6 @@ namespace OOP_Taxi_23VP2
             dataGridView1.DataSource = info.ToList();
             textBox5.Text = $"Записей со статусом 'В работе': {info.Count} ";
         }
-
         /// <summary>
         ///  Фильтр "Ожидание"
         /// </summary>
@@ -441,7 +431,6 @@ namespace OOP_Taxi_23VP2
             dataGridView1.DataSource = info.ToList();
             textBox5.Text = $"Записей со статусом 'Ожидание': {info.Count} ";
         }
-
         /// <summary>
         ///  Сброс фильтров
         /// </summary>
@@ -450,7 +439,6 @@ namespace OOP_Taxi_23VP2
             LoadOrdersFromDatabase();
             textBox5.Clear();
         }
-
         /// <summary>
         ///  Сортировка по возрастанию ID
         /// </summary>
@@ -488,7 +476,6 @@ namespace OOP_Taxi_23VP2
             {
             }
         }
-
         /// <summary>
         ///  Сортировка по убыванию ID
         /// </summary> 
