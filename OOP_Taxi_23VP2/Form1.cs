@@ -41,7 +41,7 @@ namespace OOP_Taxi_23VP2
         {
             try
             {
-                await using var conn = new NpgsqlConnection(_removeConn);
+                using var conn = new NpgsqlConnection(_removeConn);
                 await conn.OpenAsync();
 
                 if (await DatabaseExists(conn))
@@ -53,7 +53,7 @@ namespace OOP_Taxi_23VP2
                 using var cmd = new NpgsqlCommand($"create database \"{dbName}\"", conn);
                 await cmd.ExecuteNonQueryAsync();
 
-                await using var taxiConn = new NpgsqlConnection(_postgresConn);
+                using var taxiConn = new NpgsqlConnection(_postgresConn);
                 await taxiConn.OpenAsync();
 
                 using var query = new NpgsqlCommand(
@@ -83,7 +83,7 @@ namespace OOP_Taxi_23VP2
         {
             try
             {
-                await using var conn = new NpgsqlConnection(_removeConn);
+                using var conn = new NpgsqlConnection(_removeConn);
                 await conn.OpenAsync();
 
                 if (!await DatabaseExists(conn))
@@ -263,7 +263,7 @@ namespace OOP_Taxi_23VP2
                 OrderStatus = textBox4.Text
             };
 
-            await using var conn = new NpgsqlConnection(_postgresConn);
+            using var conn = new NpgsqlConnection(_postgresConn);
             await conn.OpenAsync();
             var query = "insert into taxi(driver_name, car_number, client_phone, order_status) values (@driverName, @carNumber, @clientPhone, @orderStatus)";
             try
@@ -304,7 +304,7 @@ namespace OOP_Taxi_23VP2
 
             try
             {
-                await using var conn = new NpgsqlConnection(_postgresConn);
+                using var conn = new NpgsqlConnection(_postgresConn);
                 await conn.OpenAsync();
 
                 using var cmd = new NpgsqlCommand(query, conn);
@@ -331,7 +331,7 @@ namespace OOP_Taxi_23VP2
             var id = int.Parse(numericUpDown1.Text);
             try
             {
-                await using var conn = new NpgsqlConnection(_postgresConn);
+                using var conn = new NpgsqlConnection(_postgresConn);
                 await conn.OpenAsync();
 
                 var query = @"delete from taxi where id = @id";
@@ -449,10 +449,10 @@ namespace OOP_Taxi_23VP2
 
             try
             {
-                await using var conn = new NpgsqlConnection(_postgresConn);
+                using var conn = new NpgsqlConnection(_postgresConn);
                 await conn.OpenAsync();
 
-                using var cmd = new NpgsqlCommand(query, conn);
+                var cmd = new NpgsqlCommand(query, conn);
                 await using var reader = await cmd.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())
@@ -486,11 +486,11 @@ namespace OOP_Taxi_23VP2
 
             try
             {
-                await using var conn = new NpgsqlConnection(_postgresConn);
+                using var conn = new NpgsqlConnection(_postgresConn);
                 await conn.OpenAsync();
 
                 using var cmd = new NpgsqlCommand(query, conn);
-                await using var reader = await cmd.ExecuteReaderAsync();
+                using var reader = await cmd.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())
                 {
